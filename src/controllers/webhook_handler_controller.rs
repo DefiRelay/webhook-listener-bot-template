@@ -1,21 +1,13 @@
 
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::sync::Arc;
 
 use actix_web::HttpResponse;
 use actix_web::Responder;
  
 
-use degen_sql::sql_builder::OrderingDirection;
-use degen_sql::sql_builder::SqlBuilder;
-use degen_sql::sql_builder::SqlStatementBase;
-use ethers::types::U256;
 use serde::{Deserialize, Serialize};
 
 use actix_web::web::{self, Data, Json, ServiceConfig};
  
-use tokio_postgres::types::ToSql;
 
 
 use defi_relay_webhook_listener_bot::app_state::AppState;
@@ -65,16 +57,10 @@ async fn handle_webhook(
      input: Json<HandleWebhookInput>,
     app_state: Data<AppState>,
 ) -> impl Responder {
-    
-
     println!("got webhook !" );
-
-     
-
- 
-
-      
-      return HttpResponse::InternalServerError().json("Database connection failed");
+    
+    // Return a success response for testing connectivity
+    return HttpResponse::Ok().json("Webhook received successfully");
 }
 
  

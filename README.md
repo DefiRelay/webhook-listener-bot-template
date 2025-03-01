@@ -10,6 +10,13 @@ This bot listens for webhooks from DefiRelay to learn about payments.   When it 
 In case any incoming webhooks fail, this listener will also periodically poll the DefiRelay api backend for 'un-acked' payment triggers , ACk them, and handle them .
 
 
+
+###  Webhook Config 
+
+By default, this bot listens on port 8080, endpoint  /api/webhook  .  If using Digitalocean App Platform and this docker config, set host port to 8080 on the app platform and use the server root url with  /api/webhook appended as your webhook URI in the  DefiRelay dashboard webhook config.
+
+
+
 ### Handling   
 
 When this bot learns of a payment, it will add a payment record to the Postgresql Database running in Supabase to ultimately update the status of a user.  
