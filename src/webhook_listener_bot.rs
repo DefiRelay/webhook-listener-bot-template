@@ -1,7 +1,6 @@
  
-
  
-use controllers::protocol_controller::ProtocolController;
+use defi_relay_webhook_listener_bot::app_state::AppState;
 use tokio::sync::Mutex;
 use degen_sql::db::postgres::postgres_db::Database;
 use tokio::io;
@@ -18,7 +17,7 @@ use actix_web::{App, HttpServer};
 mod controllers;
 
 use controllers::webhook_handler_controller::WebhookHandlerController;
- use controllers::{app_state::AppState, WebController};
+ use controllers::{  WebController};
 
  
 
@@ -42,7 +41,7 @@ async fn main()  -> io::Result<()> {
 
     let db_conn_url = std::env::var("DB_CONN_URL").expect(" DB_CONN_URL must be set in env ");
 
-    let database = Arc::new(Mutex::new( Database::connect(db_conn_url, None).await.unwrap() ));
+    let database = Arc::new(Mutex::new( Database::new (db_conn_url, None). unwrap() ));
 
     
 

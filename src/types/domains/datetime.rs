@@ -1,14 +1,54 @@
+use std::borrow::Cow;
+use utoipa::openapi::schema::SchemaType;
+use utoipa::openapi::KnownFormat;
+use utoipa::openapi::ObjectBuilder;
+use utoipa::openapi::RefOr;
+use utoipa::openapi::Schema;
+use utoipa::openapi::SchemaFormat;
+use utoipa::PartialSchema;
+use utoipa::ToSchema;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use tokio_postgres::types::{FromSql, IsNull, ToSql, Type};
-use std::convert::TryFrom;
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DomainDatetime(pub DateTime<Utc>);
 
+impl utoipa::ToSchema for DomainDatetime {
+    fn name() -> Cow<'static, str> {
+        Cow::Borrowed("DomainDatetime")
+    }
+
+    fn schemas(schemas: &mut Vec<(String, RefOr<Schema>)>) {
+        schemas.push((Self::name().to_string(), Self::schema()));
+    }
+}
+
+impl utoipa::PartialSchema for DomainDatetime {
+    fn schema() -> RefOr<Schema> {
+        RefOr::T(Schema::Object(
+            ObjectBuilder::new()
+                .schema_type(SchemaType::Type(utoipa::openapi::Type::Integer))
+                .format(Some(SchemaFormat::KnownFormat(KnownFormat::Byte)))
+                /*.items(Some(Box::new(RefOr::T(Schema::Object(
+                    ObjectBuilder::new()
+                        .schema_type( SchemaType::Type(utoipa::openapi::Type::Integer ) ) // Changed to String since U256 is represented as a string
+                        .description(Some("U256 number as string"))
+                        .build()
+                )))))*/
+                .build(),
+        ))
+    }
+}
+
 impl ToSql for DomainDatetime {
-    fn to_sql(&self, ty: &Type, out: &mut tokio_postgres::types::private::BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(
+        &self,
+        ty: &Type,
+        out: &mut tokio_postgres::types::private::BytesMut,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         // Use the inner DateTime's implementation
         self.0.to_sql(ty, out)
     }

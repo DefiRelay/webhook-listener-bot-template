@@ -1,13 +1,13 @@
+use bytes::BytesMut;
 use ethers::types::H256;
 use serde::de;
-use serde::Serializer;
-use serde::Deserializer;
 use serde::de::Visitor;
+use serde::Deserialize;
+use serde::Deserializer;
+use serde::Serialize;
+use serde::Serializer;
 use std::fmt;
 use std::str::FromStr;
-use serde::Serialize;
-use serde::Deserialize;
-use bytes::BytesMut;
 
 use std::error::Error;
 use tokio_postgres::types::{to_sql_checked, FromSql, IsNull, ToSql, Type};
@@ -15,14 +15,14 @@ use tokio_postgres::types::{to_sql_checked, FromSql, IsNull, ToSql, Type};
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct DomainH256(pub H256);
 
-use utoipa::openapi::schema::SchemaType;
-use utoipa::openapi::SchemaFormat;
-use utoipa::openapi::ObjectBuilder;
-use utoipa::openapi::KnownFormat;
-use utoipa::PartialSchema;
 use std::borrow::Cow;
+use utoipa::openapi::schema::SchemaType;
+use utoipa::openapi::KnownFormat;
+use utoipa::openapi::ObjectBuilder;
 use utoipa::openapi::RefOr;
 use utoipa::openapi::Schema;
+use utoipa::openapi::SchemaFormat;
+use utoipa::PartialSchema;
 use utoipa::ToSchema;
 
 impl utoipa::ToSchema for DomainH256 {
@@ -42,7 +42,7 @@ impl utoipa::PartialSchema for DomainH256 {
                 .schema_type(SchemaType::Type(utoipa::openapi::Type::String))
                 .format(Some(SchemaFormat::KnownFormat(KnownFormat::Byte)))
                 .description(Some("Ethereum H256 hash"))
-                .build()
+                .build(),
         ))
     }
 }
@@ -50,13 +50,13 @@ impl utoipa::PartialSchema for DomainH256 {
 impl<'a> FromSql<'a> for DomainH256 {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
         let s = <&str as FromSql>::from_sql(ty, raw)?;
-        
+
         // Handle both with and without '0x' prefix
         let hash_str = if s.starts_with("0x") { &s[2..] } else { s };
-        
-        let h256_val = H256::from_str(hash_str)
-            .map_err(|e| Box::new(e) as Box<dyn Error + Sync + Send>)?;
-            
+
+        let h256_val =
+            H256::from_str(hash_str).map_err(|e| Box::new(e) as Box<dyn Error + Sync + Send>)?;
+
         Ok(DomainH256(h256_val))
     }
 
@@ -112,8 +112,12 @@ impl<'de> Deserialize<'de> for DomainH256 {
                 E: de::Error,
             {
                 // Handle both with and without '0x' prefix
-                let hash_str = if value.starts_with("0x") { &value[2..] } else { value };
-                
+                let hash_str = if value.starts_with("0x") {
+                    &value[2..]
+                } else {
+                    value
+                };
+
                 H256::from_str(hash_str)
                     .map(DomainH256)
                     .map_err(de::Error::custom)
@@ -123,7 +127,6 @@ impl<'de> Deserialize<'de> for DomainH256 {
         deserializer.deserialize_str(DomainH256Visitor)
     }
 }
-
 
 /*
 
@@ -153,7 +156,7 @@ mod tests {
         let hash_str = "000000000000000000000000000000000000000000000000000000000000abcd";
         let hash = H256::from_str(hash_str).unwrap();
         let domain_hash = DomainH256(hash);
-        
+
         let serialized = serde_json::to_string(&domain_hash).unwrap();
         assert_eq!(serialized, format!("\"0x{}\"", hash_str));
     }

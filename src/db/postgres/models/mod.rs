@@ -1,2 +1,2 @@
-pub mod events_model; 
-pub mod payments_model;
+pub mod webhook_triggers_model; 
+pub mod premium_subscription_model;

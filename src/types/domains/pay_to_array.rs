@@ -1,54 +1,37 @@
-use utoipa::openapi::schema::SchemaType;
-use utoipa::openapi::SchemaFormat;
-use utoipa::openapi::ObjectBuilder;
-use utoipa::openapi::KnownFormat;
-use utoipa::PartialSchema;
-use std::borrow::Cow;
-use utoipa::openapi::RefOr;
-use utoipa::openapi::Schema;
-use utoipa::ToSchema;
-use ethers::types::{H160, Address};
-use serde::{Serialize, Deserialize};
+use serde::de;
+use serde::de::Visitor;
+use serde::Deserializer;
+use serde::Serializer;
+use std::fmt;
+
 use bytes::BytesMut;
-use ethers::utils::to_checksum;
+use ethers::types::Address;
+use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::{error::Error, str::FromStr};
 use tokio_postgres::types::{to_sql_checked, FromSql, IsNull, ToSql, Type};
+use utoipa::openapi::schema::SchemaType;
+use utoipa::openapi::KnownFormat;
+use utoipa::openapi::ObjectBuilder;
+use utoipa::openapi::RefOr;
+use utoipa::openapi::Schema;
+use utoipa::openapi::SchemaFormat;
+use utoipa::PartialSchema;
+use utoipa::ToSchema;
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+use crate::types::domains::eth_address::DomainEthAddress;
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct DomainPayToArray(pub Vec<Address>);
 
 // Implement utoipa schema for OpenAPI documentation
-/*
 impl utoipa::PartialSchema for DomainPayToArray {
     fn schema() -> RefOr<Schema> {
         RefOr::T(Schema::Object(
             ObjectBuilder::new()
-                .schema_type(SchemaType::Array)
+                .schema_type(SchemaType::Type(utoipa::openapi::Type::Integer))
                 .format(Some(SchemaFormat::KnownFormat(KnownFormat::Byte)))
-                .items(Some(Box::new(RefOr::T(Schema::Object(
-                    ObjectBuilder::new()
-                        .schema_type(SchemaType::AnyValue)
-                        .build()
-                )))))
-                .build()
-        ))
-    }
-}*/
-
-impl utoipa::PartialSchema for DomainPayToArray {
-    fn schema() -> RefOr<Schema> {
-        RefOr::T(Schema::Object(
-            ObjectBuilder::new()
-                .schema_type( SchemaType::Type(utoipa::openapi::Type::String ) )
-                .format(Some(SchemaFormat::KnownFormat(KnownFormat::Byte)))
-
-                /*.items(Some(Box::new(RefOr::T(Schema::Object(
-                    ObjectBuilder::new()
-                        .schema_type( SchemaType::Type(utoipa::openapi::Type::Integer ) ) // Changed to String since U256 is represented as a string
-                        .description(Some("U256 number as string"))
-                        .build()
-                )))))*/
-                .build()
+                .build(),
         ))
     }
 }
@@ -65,16 +48,16 @@ impl utoipa::ToSchema for DomainPayToArray {
 
 // PostgreSQL serialization/deserialization
 impl<'a> FromSql<'a> for DomainPayToArray {
-   fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
         // Parse the PostgreSQL array into a Vec<String> first
         let address_strings = <Vec<String> as FromSql>::from_sql(ty, raw)?;
-        
+
         // Convert each string address to an ethers Address
         let mut addresses = Vec::new();
         for addr_str in address_strings {
             addresses.push(Address::from_str(&addr_str)?);
         }
-        
+
         Ok(DomainPayToArray(addresses))
     }
 
@@ -85,16 +68,21 @@ impl<'a> FromSql<'a> for DomainPayToArray {
 }
 
 impl ToSql for DomainPayToArray {
-     fn to_sql(
+    fn to_sql(
         &self,
         ty: &Type,
         out: &mut BytesMut,
     ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        // Convert the Vec<Address> to Vec<String> with checksummed addresses
-        let addresses: Vec<String> = self.0.iter()
-            .map(|addr| format!("{}", to_checksum(addr, None)))
+        // Convert the Vec<Address> to Vec<String> using DomainEthAddress format
+        let addresses: Vec<String> = self
+            .0
+            .iter()
+            .map(|addr| {
+                let domain_addr = DomainEthAddress(*addr);
+                domain_addr.to_string_full()
+            })
             .collect();
-        
+
         // Use the PostgreSQL array serialization for Vec<String>
         <Vec<String> as ToSql>::to_sql(&addresses, ty, out)
     }
@@ -106,22 +94,94 @@ impl ToSql for DomainPayToArray {
     to_sql_checked!();
 }
 
+// Implement Serialize for JSON conversion
+impl Serialize for DomainPayToArray {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Serialize as a vector of strings using DomainEthAddress format
+        let string_values: Vec<String> = self
+            .0
+            .iter()
+            .map(|addr| {
+                let domain_addr = DomainEthAddress(*addr);
+                domain_addr.to_string_full()
+            })
+            .collect();
+
+        string_values.serialize(serializer)
+    }
+}
+
+// Implement Deserialize for JSON conversion
+impl<'de> Deserialize<'de> for DomainPayToArray {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct DomainPayToArrayVisitor;
+
+        impl<'de> Visitor<'de> for DomainPayToArrayVisitor {
+            type Value = DomainPayToArray;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a sequence of strings representing Ethereum addresses")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: de::SeqAccess<'de>,
+            {
+                let mut addresses = Vec::new();
+
+                // Process each element in the sequence
+                while let Some(value) = seq.next_element::<serde_json::Value>()? {
+                    match value {
+                        serde_json::Value::String(s) => {
+                            // Try to parse the string as an Ethereum address
+                            match Address::from_str(&s) {
+                                Ok(addr) => addresses.push(addr),
+                                Err(e) => {
+                                    return Err(de::Error::custom(format!(
+                                        "Invalid Ethereum address: {}",
+                                        e
+                                    )))
+                                }
+                            }
+                        }
+                        _ => return Err(de::Error::custom("Expected string for Ethereum address")),
+                    }
+                }
+
+                Ok(DomainPayToArray(addresses))
+            }
+        }
+
+        deserializer.deserialize_seq(DomainPayToArrayVisitor)
+    }
+}
+
 // Helper methods
 impl DomainPayToArray {
     pub fn to_string_array(&self) -> Vec<String> {
-        self.0.iter()
-            .map(|addr| format!("{:?}", addr))
+        self.0
+            .iter()
+            .map(|addr| {
+                let domain_addr = DomainEthAddress(*addr);
+                domain_addr.to_string_full()
+            })
             .collect()
     }
-    
+
     pub fn new(addresses: Vec<Address>) -> Self {
         Self(addresses)
     }
-    
+
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
-    
+
     pub fn len(&self) -> usize {
         self.0.len()
     }
