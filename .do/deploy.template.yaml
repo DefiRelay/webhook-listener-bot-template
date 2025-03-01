@@ -1,0 +1,38 @@
+spec:
+  name: teller-pools-bot
+  services:
+  - dockerfile_path: Dockerfile.scrapebot
+    git:
+      branch: main
+      repo_clone_url: https://github.com/teller-protocol/teller-pools-bot-rs.git
+    name: scrapebot
+    instance_count: 1
+    instance_size_slug: basic-xxs
+  - dockerfile_path: Dockerfile.watchlister
+    git:
+      branch: main
+      repo_clone_url: https://github.com/teller-protocol/teller-pools-bot-rs.git
+    name: watchlister
+    instance_count: 1
+    instance_size_slug: basic-xxs
+  - dockerfile_path: Dockerfile.loan_summary
+    git:
+      branch: main
+      repo_clone_url: https://github.com/teller-protocol/teller-pools-bot-rs.git
+    name: loan_summary
+    instance_count: 1
+    instance_size_slug: basic-xxs
+  - dockerfile_path: Dockerfile.teller_point_deltas
+    git:
+      branch: main
+      repo_clone_url: https://github.com/teller-protocol/teller-pools-bot-rs.git
+    name: teller_point_deltas
+    instance_count: 1
+    instance_size_slug: basic-xxs
+  - dockerfile_path: Dockerfile.teller_points
+    git:
+      branch: main
+      repo_clone_url: https://github.com/teller-protocol/teller-pools-bot-rs.git
+    name: teller_points
+    instance_count: 1
+    instance_size_slug: basic-xxs
