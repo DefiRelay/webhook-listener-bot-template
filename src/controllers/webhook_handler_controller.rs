@@ -41,7 +41,7 @@ impl WebController for WebhookHandlerController {
             web::scope("/api/webhook")
                 // Add your routes here, e.g.,
                 .route(
-                    "/",
+                    "/handle",
                     web::post().to(handle_webhook),
                 ),
         );
